@@ -2,8 +2,9 @@
 
 import argparse
 import sqlite3
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 import yaml
 
 
@@ -51,7 +52,7 @@ def view_forecasts(config: dict, limit: int = 21, latest_only: bool = True):
         # Get only the latest run
         query = """
             SELECT date, item_id, predicted_quantity, run_id
-            FROM forecasts 
+            FROM forecasts
             WHERE run_id = (SELECT run_id FROM forecasts ORDER BY run_id DESC LIMIT 1)
             ORDER BY date, item_id
             LIMIT ?
@@ -59,7 +60,7 @@ def view_forecasts(config: dict, limit: int = 21, latest_only: bool = True):
     else:
         query = """
             SELECT date, item_id, predicted_quantity, run_id
-            FROM forecasts 
+            FROM forecasts
             ORDER BY run_id DESC, date, item_id
             LIMIT ?
         """
@@ -72,23 +73,24 @@ def view_forecasts(config: dict, limit: int = 21, latest_only: bool = True):
     else:
         print(f"\n=== FORECASTS (showing {len(df)} records) ===")
         print(df.to_string(index=False))
-        if len(df) > 0:
-            print(f"\nSummary:")
+        if not df.empty:
+            print("\nSummary:")
             print(f"  Date range: {df['date'].min()} to {df['date'].max()}")
             print(f"  Average prediction: {df['predicted_quantity'].mean():.2f}")
-            print(
-                f"  Range: {df['predicted_quantity'].min():.2f} - {df['predicted_quantity'].max():.2f}"
-            )
+            min_pred = df["predicted_quantity"].min()
+            max_pred = df["predicted_quantity"].max()
+            print(f"  Range: {min_pred:.2f} - {max_pred:.2f}")
     return df
 
 
 def view_model_runs(config: dict):
     """View model training runs."""
     conn = sqlite3.connect(config["database"]["path"])
-    df = pd.read_sql_query(
-        "SELECT run_id, timestamp, model_type, metrics FROM model_runs ORDER BY timestamp DESC LIMIT 10",
-        conn,
+    query = (
+        "SELECT run_id, timestamp, model_type, metrics "
+        "FROM model_runs ORDER BY timestamp DESC LIMIT 10"
     )
+    df = pd.read_sql_query(query, conn)
     conn.close()
 
     if df.empty:
@@ -141,7 +143,8 @@ def main():
         view_sales(config, limit=5)
         view_forecasts(config, limit=7)
         print(
-            "\nUse --all to see all data, or --items, --sales, --forecasts, --runs for specific views"
+            "\nUse --all to see all data, or --items, --sales, "
+            "--forecasts, --runs for specific views"
         )
 
 

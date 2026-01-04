@@ -29,4 +29,3 @@ def get_date_range(start_date: str, days: int) -> List[str]:
         dates.append(current.strftime("%Y-%m-%d"))
         current += timedelta(days=1)
     return dates
-

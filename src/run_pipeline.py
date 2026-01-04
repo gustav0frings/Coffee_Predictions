@@ -4,18 +4,18 @@ import argparse
 import logging
 import sys
 from pathlib import Path
+
 import yaml
 
-from src.utils.db import init_database
-from src.ingest.load_sales import load_sales_data, preprocess_hipos_file
 from src.features.build_features import build_features
-from src.models.train import train_model
+from src.ingest.load_sales import load_sales_data, preprocess_hipos_file
 from src.models.predict import generate_forecasts
+from src.models.train import train_model
+from src.utils.db import init_database
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -40,41 +40,41 @@ def main():
         type=str,
         choices=["predict", "retrain"],
         default="predict",
-        help="Pipeline mode: 'predict' (forecast only) or 'retrain' (retrain + forecast)"
+        help="Pipeline mode: 'predict' (forecast only) or 'retrain' (retrain + forecast)",
     )
     parser.add_argument(
-        "--config",
-        type=str,
-        default="config/config.yaml",
-        help="Path to config file"
+        "--config", type=str, default="config/config.yaml", help="Path to config file"
     )
     parser.add_argument(
         "--hipos-file",
         type=str,
         default=None,
-        help="Path to HIPOS output CSV file to preprocess (overrides config file path). Default: uses path from config.yaml"
+        help=(
+            "Path to HIPOS output CSV file to preprocess (overrides config "
+            "file path). Default: uses path from config.yaml"
+        ),
     )
     parser.add_argument(
         "--hipos-date",
         type=str,
         default=None,
-        help="Date for HIPOS data in YYYY-MM-DD format. If not provided, uses today's date."
+        help="Date for HIPOS data in YYYY-MM-DD format. If not provided, uses today's date.",
     )
-    
+
     args = parser.parse_args()
-    
+
     # Load configuration
     config_path = Path(args.config)
     if not config_path.exists():
         logger.error(f"Config file not found: {config_path}")
         sys.exit(1)
-    
+
     config = load_config(config_path)
-    
+
     # Initialize database
     logger.info("Initializing database...")
     init_database(config)
-    
+
     try:
         # Step 0: Preprocess HIPOS file (standard import method)
         hipos_path = args.hipos_file or config.get("paths", {}).get("hipos_input")
@@ -85,19 +85,19 @@ def main():
             preprocess_hipos_file(hipos_path, date=args.hipos_date, config=config)
         elif hipos_path:
             logger.warning(f"HIPOS file not found: {hipos_path}, skipping preprocessing")
-        
+
         # Step 1: Load sales data
         logger.info("=" * 50)
         logger.info("Step 1: Loading sales data")
         logger.info("=" * 50)
         sales_df = load_sales_data(config)
-        
+
         # Step 2: Build features
         logger.info("=" * 50)
         logger.info("Step 2: Building features")
         logger.info("=" * 50)
         features_df = build_features(sales_df, config)
-        
+
         # Step 3: Train model (if retrain mode)
         if args.mode == "retrain":
             logger.info("=" * 50)
@@ -105,18 +105,18 @@ def main():
             logger.info("=" * 50)
             model, metrics = train_model(features_df, config)
             logger.info(f"Training metrics: {metrics}")
-        
+
         # Step 4: Generate forecasts
         logger.info("=" * 50)
         logger.info("Step 4: Generating forecasts")
         logger.info("=" * 50)
         forecasts_df = generate_forecasts(config)
-        
+
         logger.info("=" * 50)
         logger.info("Pipeline completed successfully!")
         logger.info("=" * 50)
         logger.info(f"Generated {len(forecasts_df)} forecasts")
-        
+
     except Exception as e:
         logger.error(f"Pipeline failed with error: {e}", exc_info=True)
         sys.exit(1)
@@ -124,4 +124,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

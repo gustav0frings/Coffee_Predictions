@@ -1,9 +1,8 @@
 """Database utilities for SQLite operations."""
 
-import sqlite3
 import logging
+import sqlite3
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +18,12 @@ def get_db_path(config: dict) -> Path:
 def init_database(config: dict) -> None:
     """Initialize database and create all required tables."""
     db_path = get_db_path(config)
-    
+
     logger.info(f"Initializing database at {db_path}")
-    
+
     conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
-    
+
     # Create items table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS items (
@@ -33,7 +32,7 @@ def init_database(config: dict) -> None:
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    
+
     # Create daily_item_sales table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS daily_item_sales (
@@ -46,18 +45,18 @@ def init_database(config: dict) -> None:
             FOREIGN KEY (item_id) REFERENCES items(id)
         )
     """)
-    
+
     # Migrate existing tables to add new columns if they don't exist
     try:
         cursor.execute("ALTER TABLE daily_item_sales ADD COLUMN promotion_discount REAL DEFAULT 0")
     except sqlite3.OperationalError:
         pass  # Column already exists
-    
+
     try:
         cursor.execute("ALTER TABLE daily_item_sales ADD COLUMN is_holiday INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass  # Column already exists
-    
+
     # Create forecasts table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS forecasts (
@@ -69,7 +68,7 @@ def init_database(config: dict) -> None:
             FOREIGN KEY (item_id) REFERENCES items(id)
         )
     """)
-    
+
     # Create model_runs table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS model_runs (
@@ -79,10 +78,10 @@ def init_database(config: dict) -> None:
             model_type TEXT
         )
     """)
-    
+
     conn.commit()
     conn.close()
-    
+
     logger.info("Database initialized successfully")
 
 
@@ -90,4 +89,3 @@ def get_connection(config: dict) -> sqlite3.Connection:
     """Get a connection to the database."""
     db_path = get_db_path(config)
     return sqlite3.connect(str(db_path))
-

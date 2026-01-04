@@ -1,2 +1,1 @@
 """Sales forecasting package."""
-

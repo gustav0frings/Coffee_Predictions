@@ -169,6 +169,25 @@ python src/utils/view_data.py --sales --item-id 1  # Filter by item ID
 - Sample data is created in the database using `create_sample_data()`
 - You can also query the database directly using any SQLite client
 
+### Sanity Check / Test All Commands
+
+To verify that all commands in the README work correctly after making changes:
+
+```bash
+# Run the test script (tests all README commands)
+./scripts/test_commands.sh
+```
+
+The test script will:
+- Generate sample data
+- Test all view_data.py commands
+- Test pipeline runs (predict and retrain modes)
+- Verify database structure
+- Verify model files are created
+- Report pass/fail status for each test
+
+**Note:** The script automatically backs up and restores your database, so it's safe to run on existing data.
+
 ## Project Structure
 
 ```
