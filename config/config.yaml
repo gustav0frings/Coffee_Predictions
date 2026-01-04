@@ -1,0 +1,17 @@
+database:
+  path: data/forecast.db
+
+forecast:
+  horizon: 7  # days to forecast ahead
+
+features:
+  window: 28  # days of historical data to use for features
+
+model:
+  type: catboost  # options: catboost, lightgbm
+  retrain: false  # set to true to force retraining
+
+paths:
+  model_dir: models
+  reports_dir: reports
+

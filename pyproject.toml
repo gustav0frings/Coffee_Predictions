@@ -1,0 +1,36 @@
+[project]
+name = "probocaitos-predictions"
+version = "0.1.0"
+description = "Sales forecasting system using local SQLite"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "catboost",
+    "lightgbm",
+    "matplotlib",
+    "pyyaml",
+    "sqlite-utils",
+    "joblib",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+ignore = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
