@@ -14,4 +14,5 @@ model:
 paths:
   model_dir: models
   reports_dir: reports
+  hipos_input: sample/output_hipos_sample.csv.csv  # Path to HIPOS output file (standard import)
 

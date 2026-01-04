@@ -21,7 +21,6 @@ models/*.joblib
 
 # CatBoost training artifacts
 catboost_info/*.tsv
-catboost_info/*.json
 learn_error.tsv
 *.tsv
 *.tfevents

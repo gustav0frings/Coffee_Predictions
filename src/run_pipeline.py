@@ -7,7 +7,7 @@ from pathlib import Path
 import yaml
 
 from src.utils.db import init_database
-from src.ingest.load_sales import load_sales_data
+from src.ingest.load_sales import load_sales_data, preprocess_hipos_file
 from src.features.build_features import build_features
 from src.models.train import train_model
 from src.models.predict import generate_forecasts
@@ -48,6 +48,18 @@ def main():
         default="config/config.yaml",
         help="Path to config file"
     )
+    parser.add_argument(
+        "--hipos-file",
+        type=str,
+        default=None,
+        help="Path to HIPOS output CSV file to preprocess (overrides config file path). Default: uses path from config.yaml"
+    )
+    parser.add_argument(
+        "--hipos-date",
+        type=str,
+        default=None,
+        help="Date for HIPOS data in YYYY-MM-DD format. If not provided, uses today's date."
+    )
     
     args = parser.parse_args()
     
@@ -64,6 +76,16 @@ def main():
     init_database(config)
     
     try:
+        # Step 0: Preprocess HIPOS file (standard import method)
+        hipos_path = args.hipos_file or config.get("paths", {}).get("hipos_input")
+        if hipos_path and Path(hipos_path).exists():
+            logger.info("=" * 50)
+            logger.info("Step 0: Preprocessing HIPOS file")
+            logger.info("=" * 50)
+            preprocess_hipos_file(hipos_path, date=args.hipos_date, config=config)
+        elif hipos_path:
+            logger.warning(f"HIPOS file not found: {hipos_path}, skipping preprocessing")
+        
         # Step 1: Load sales data
         logger.info("=" * 50)
         logger.info("Step 1: Loading sales data")

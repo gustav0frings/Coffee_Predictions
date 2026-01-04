@@ -13,6 +13,7 @@ It is designed to be:
 
 ## What it does
 
+- Preprocesses HIPOS app output files (cleans Spanish number formatting, extracts sales data)
 - Ingests raw sales data
 - Aggregates sales daily per item
 - Builds time-series features (lags, rolling averages, calendar features, promotions, holidays)
@@ -89,6 +90,34 @@ source .venv/bin/activate
 export PYTHONPATH=$(pwd)  # Or use: PYTHONPATH=$(pwd) python src/run_pipeline.py
 ```
 
+### HIPOS File Import (Standard)
+
+The pipeline automatically imports sales data from HIPOS CSV files. This is the standard import method. The preprocessing step:
+- Cleans Spanish number formatting (handles commas/periods as decimal separators)
+- Extracts sales data from the "Venta" column (negative values indicate sales)
+- Creates items from "Referencia" codes if they don't exist
+- Aggregates sales by item across all warehouses
+- Loads the data into the database
+
+**Automatic import from config:**
+
+By default, the pipeline imports from the HIPOS file specified in `config/config.yaml`:
+
+```bash
+# Standard run - automatically imports HIPOS file from config
+python src/run_pipeline.py --mode predict
+
+# Specify date for the HIPOS data
+python src/run_pipeline.py --mode predict --hipos-date 2025-01-15
+```
+
+**Override with different file:**
+
+```bash
+# Use a different HIPOS file (overrides config)
+python src/run_pipeline.py --mode predict --hipos-file path/to/different_file.csv --hipos-date 2025-01-15
+```
+
 ### Run full pipeline (forecast only)
 
 ```bash
@@ -99,6 +128,12 @@ python src/run_pipeline.py --mode predict
 
 ```bash
 python src/run_pipeline.py --mode retrain
+```
+
+**Note:** You can combine HIPOS preprocessing with retrain mode:
+
+```bash
+python src/run_pipeline.py --mode retrain --hipos-file sample/output_hipos_sample.csv.csv --hipos-date 2025-01-15
 ```
 
 ### Generate sample data (for testing)
@@ -144,7 +179,7 @@ python src/utils/view_data.py --sales --item-id 1  # Filter by item ID
 │   └── config.yaml            # paths + model settings
 ├── src/
 │   ├── ingest/
-│   │   └── load_sales.py      # raw → daily_item_sales
+│   │   └── load_sales.py      # HIPOS preprocessing + raw → daily_item_sales
 │   ├── features/
 │   │   └── build_features.py  # lags, rolling, calendar
 │   ├── models/
@@ -169,8 +204,19 @@ Edit `config/config.yaml` to customize:
 - Forecast horizon (default: 7 days)
 - Feature window (default: 28 days)
 - Model type (`catboost` or `lightgbm`)
+- HIPOS input file path (standard import method - automatically processed on each run)
 
 The model type will automatically fall back to `RandomForestRegressor` (from scikit-learn) if the requested library is not available.
+
+### HIPOS File Format
+
+The HIPOS preprocessing expects a CSV file with the following structure:
+- **Column 0 (Referencia)**: Item reference code (used as item identifier)
+- **Column 1 (Artículo)**: Item name/description
+- **Column 7 (Venta)**: Sales quantity (negative values indicate sales)
+- Other columns (Stock, costs, etc.) are ignored
+
+The file may use Spanish number formatting (commas for decimals, periods for thousands), which is automatically handled during preprocessing.
 
 ## Database Schema
 

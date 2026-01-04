@@ -3,9 +3,211 @@
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
+from pathlib import Path
+import re
 from src.utils.db import init_database, get_connection
 
 logger = logging.getLogger(__name__)
+
+
+def clean_spanish_number(value):
+    """
+    Convert Spanish-formatted number to float.
+    Handles formats like: "1.234,56" -> 1234.56, "1,234.56" -> 1234.56
+    """
+    if pd.isna(value) or value == '' or value == 0:
+        return 0.0
+    
+    # Convert to string and remove quotes
+    str_val = str(value).strip().replace('"', '').replace("'", "")
+    
+    # If it's already a simple number, return it
+    try:
+        return float(str_val)
+    except ValueError:
+        pass
+    
+    # Handle Spanish format: thousands with dots, decimals with commas
+    # e.g., "1.234,56" -> 1234.56
+    if ',' in str_val and '.' in str_val:
+        # Check if comma is decimal separator (more digits after comma)
+        parts = str_val.replace('.', '').split(',')
+        if len(parts) == 2 and len(parts[1]) <= 2:
+            # Spanish format: dots are thousands, comma is decimal
+            return float(parts[0] + '.' + parts[1])
+        else:
+            # US format: comma is thousands, dot is decimal
+            return float(str_val.replace(',', ''))
+    elif ',' in str_val:
+        # Could be decimal separator or thousands
+        if str_val.count(',') == 1 and len(str_val.split(',')[1]) <= 2:
+            # Likely decimal separator
+            return float(str_val.replace(',', '.'))
+        else:
+            # Likely thousands separator
+            return float(str_val.replace(',', ''))
+    elif '.' in str_val:
+        # Could be decimal or thousands separator
+        parts = str_val.split('.')
+        if len(parts) == 2 and len(parts[1]) <= 2:
+            # Likely decimal separator
+            return float(str_val)
+        else:
+            # Likely thousands separator
+            return float(str_val.replace('.', ''))
+    
+    # Last resort: try to parse as-is
+    try:
+        return float(str_val)
+    except ValueError:
+        return 0.0
+
+
+def preprocess_hipos_file(hipos_file_path: str, date: str = None, config: dict = None) -> None:
+    """
+    Preprocess HIPOS output CSV file and load into database.
+    
+    Args:
+        hipos_file_path: Path to HIPOS output CSV file
+        date: Date for the sales data in YYYY-MM-DD format. If None, uses today's date.
+        config: Configuration dictionary (required for database operations)
+    
+    The HIPOS file is expected to have:
+    - Column 0: Referencia (item reference code)
+    - Column 1: Artículo (item name)
+    - Column 7: Venta (sales quantity, negative values indicate sales)
+    - Other columns: Stock, costs, etc. (not used)
+    """
+    if config is None:
+        raise ValueError("config parameter is required")
+    
+    logger.info(f"Preprocessing HIPOS file: {hipos_file_path}")
+    
+    # Determine date
+    if date is None:
+        date = datetime.now().strftime("%Y-%m-%d")
+        logger.info(f"No date provided, using today's date: {date}")
+    
+    # Validate date format
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError(f"Invalid date format: {date}. Expected YYYY-MM-DD")
+    
+    # Read HIPOS file
+    file_path = Path(hipos_file_path)
+    if not file_path.exists():
+        raise FileNotFoundError(f"HIPOS file not found: {hipos_file_path}")
+    
+    # Read CSV with proper encoding (try UTF-8 first, then latin-1)
+    try:
+        df = pd.read_csv(file_path, encoding='utf-8')
+    except UnicodeDecodeError:
+        logger.warning("UTF-8 encoding failed, trying latin-1")
+        df = pd.read_csv(file_path, encoding='latin-1')
+    
+    logger.info(f"Loaded {len(df)} rows from HIPOS file")
+    
+    # Initialize database
+    init_database(config)
+    conn = get_connection(config)
+    cursor = conn.cursor()
+    
+    # Process each row
+    sales_records = []
+    items_created = set()
+    
+    for idx, row in df.iterrows():
+        try:
+            # Extract item reference (column 0)
+            referencia = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else None
+            if not referencia or referencia == 'nan':
+                continue
+            
+            # Extract item name (column 1) for creating items
+            articulo = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else referencia
+            
+            # Extract sales quantity (column 8, index 8 = "Venta")
+            venta_raw = row.iloc[8] if len(row) > 8 else 0
+            
+            # Clean and convert sales quantity
+            venta_quantity = clean_spanish_number(venta_raw)
+            
+            # Sales are negative in HIPOS, convert to positive quantity
+            quantity = abs(venta_quantity) if venta_quantity < 0 else 0.0
+            
+            # Skip if no sales
+            if quantity == 0:
+                continue
+            
+            # Get or create item
+            item_id = None
+            item_was_created = False
+            
+            # First, try to find item by name containing referencia
+            cursor.execute("SELECT id FROM items WHERE name LIKE ?", (f"%{referencia}%",))
+            item_result = cursor.fetchone()
+            
+            if item_result:
+                item_id = item_result[0]
+            else:
+                # Try to use referencia as ID if it's numeric
+                try:
+                    potential_id = int(referencia)
+                    # Check if this ID already exists
+                    cursor.execute("SELECT id FROM items WHERE id = ?", (potential_id,))
+                    if cursor.fetchone():
+                        item_id = potential_id
+                    else:
+                        # ID doesn't exist, use it for new item
+                        item_id = potential_id
+                        item_was_created = True
+                except (ValueError, TypeError):
+                    # Referencia is not numeric, get next available ID
+                    cursor.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM items")
+                    item_id = cursor.fetchone()[0]
+                    item_was_created = True
+                
+                # Insert new item (only if it doesn't exist)
+                cursor.execute(
+                    "INSERT OR IGNORE INTO items (id, name) VALUES (?, ?)",
+                    (item_id, f"{articulo} ({referencia})")
+                )
+                # Check if row was actually inserted
+                if item_was_created:
+                    # Verify it was created (not ignored)
+                    cursor.execute("SELECT id FROM items WHERE id = ? AND name = ?", 
+                                 (item_id, f"{articulo} ({referencia})"))
+                    if cursor.fetchone():
+                        items_created.add(item_id)
+            
+            # Add to sales records
+            sales_records.append((date, item_id, float(quantity), 0.0, 0))
+            
+        except Exception as e:
+            logger.warning(f"Error processing row {idx}: {e}")
+            continue
+    
+    # Aggregate sales by item_id (in case same item appears multiple times)
+    sales_dict = {}
+    for date_str, item_id, qty, promo, holiday in sales_records:
+        key = (date_str, item_id)
+        if key in sales_dict:
+            sales_dict[key] = (date_str, item_id, sales_dict[key][2] + qty, promo, holiday)
+        else:
+            sales_dict[key] = (date_str, item_id, qty, promo, holiday)
+    
+    # Insert aggregated sales data
+    aggregated_records = list(sales_dict.values())
+    cursor.executemany(
+        "INSERT OR REPLACE INTO daily_item_sales (date, item_id, quantity, promotion_discount, is_holiday) VALUES (?, ?, ?, ?, ?)",
+        aggregated_records
+    )
+    
+    conn.commit()
+    conn.close()
+    
+    logger.info(f"Preprocessed HIPOS file: created {len(items_created)} new items, inserted {len(aggregated_records)} sales records for date {date}")
 
 
 def load_sales_data(config: dict) -> pd.DataFrame:
