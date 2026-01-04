@@ -1,0 +1,2 @@
+run_id,timestamp,metrics,model_type
+1962ebc5-a0a1-4aa3-89ff-c748825353f0,2026-01-04T17:40:13.556325,"{'mae': 0.0, 'wape': 0.0, 'model_type': 'catboost'}",catboost

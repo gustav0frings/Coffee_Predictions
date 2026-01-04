@@ -109,6 +109,31 @@ To create sample sales data for testing:
 python -c "from src.ingest.load_sales import create_sample_data; import yaml; config = yaml.safe_load(open('config/config.yaml')); create_sample_data(config, num_items=3, days=60)"
 ```
 
+### View database contents
+
+To view data stored in the SQLite database:
+
+```bash
+# View all data (summary)
+python src/utils/view_data.py
+
+# View specific data
+python src/utils/view_data.py --items          # View items
+python src/utils/view_data.py --sales          # View sales data
+python src/utils/view_data.py --forecasts      # View forecasts
+python src/utils/view_data.py --runs           # View model training runs
+python src/utils/view_data.py --all            # View everything
+
+# With options
+python src/utils/view_data.py --sales --limit 50  # Show 50 sales records
+python src/utils/view_data.py --sales --item-id 1  # Filter by item ID
+```
+
+**Data Location:**
+- All data is stored in `data/forecast.db` (SQLite database)
+- Sample data is created in the database using `create_sample_data()`
+- You can also query the database directly using any SQLite client
+
 ## Project Structure
 
 ```
@@ -153,6 +178,15 @@ The SQLite database (`data/forecast.db`) contains:
 
 - `items`: Item master data
 - `daily_item_sales`: Historical daily sales per item
-- `forecasts`: Generated forecasts
+- `forecasts`: Generated forecasts (with `run_id` to track different forecast runs)
 - `model_runs`: Training run metadata
+
+**Sample Data:**
+- Sample data is generated programmatically using `create_sample_data()` function
+- By default, creates 3 items with 60 days of historical sales data
+- Data includes realistic patterns (weekend effects, randomness)
+- All data is stored in the SQLite database at `data/forecast.db`
+
+**Viewing Data:**
+Use the `view_data.py` utility script (see "View database contents" section above) or query the database directly with any SQLite client.
 
