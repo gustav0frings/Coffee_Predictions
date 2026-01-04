@@ -52,20 +52,57 @@ def generate_forecasts(config: dict) -> pd.DataFrame:
         return pd.DataFrame(columns=["date", "item_id", "predicted_quantity"])
     conn.close()
     
-    # Build features for forecast period (stub - will be implemented later)
-    # For now, create empty feature DataFrame
-    forecast_features = pd.DataFrame(columns=[
-        "date", "item_id", "lag_1", "lag_7", 
-        "rolling_7", "rolling_28", "day_of_week", "month"
-    ])
+    # Load historical sales data to build features for forecast period
+    from src.ingest.load_sales import load_sales_data
+    sales_df = load_sales_data(config)
     
-    # Generate predictions (stub - will predict zeros for now)
+    # Build features for forecast period
+    # We need to create feature rows for each (date, item_id) combination
     forecasts = []
+    feature_cols = ["lag_1", "lag_7", "rolling_7", "rolling_28", "day_of_week", "month", "item_id"]
+    
     for date in forecast_dates:
         for _, item_row in items_df.iterrows():
             item_id = item_row["item_id"]
-            # Placeholder prediction (will use model.predict() when features are ready)
-            predicted_quantity = 0.0
+            
+            # Get the most recent sales data for this item to compute features
+            item_sales = sales_df[sales_df["item_id"] == item_id].copy()
+            
+            if not item_sales.empty:
+                item_sales["date"] = pd.to_datetime(item_sales["date"])
+                item_sales = item_sales.sort_values("date")
+                
+                # Get last known values for lags and rolling averages
+                last_quantity = item_sales["quantity"].iloc[-1] if len(item_sales) > 0 else 0.0
+                lag_1 = item_sales["quantity"].iloc[-1] if len(item_sales) >= 1 else 0.0
+                lag_7 = item_sales["quantity"].iloc[-7] if len(item_sales) >= 7 else 0.0
+                rolling_7 = item_sales["quantity"].tail(7).mean() if len(item_sales) >= 1 else 0.0
+                rolling_28 = item_sales["quantity"].tail(28).mean() if len(item_sales) >= 1 else 0.0
+            else:
+                lag_1 = 0.0
+                lag_7 = 0.0
+                rolling_7 = 0.0
+                rolling_28 = 0.0
+            
+            # Calendar features for forecast date
+            date_obj = pd.to_datetime(date)
+            day_of_week = date_obj.dayofweek
+            month = date_obj.month
+            
+            # Build feature vector
+            X = pd.DataFrame([[
+                lag_1, lag_7, rolling_7, rolling_28, day_of_week, month, item_id
+            ]], columns=feature_cols)
+            
+            # Make prediction
+            try:
+                predicted_quantity = float(model.predict(X)[0])
+                # Ensure non-negative
+                predicted_quantity = max(0.0, predicted_quantity)
+            except Exception as e:
+                logger.warning(f"Error predicting for item {item_id} on {date}: {e}")
+                predicted_quantity = 0.0
+            
             forecasts.append({
                 "date": date,
                 "item_id": item_id,

@@ -45,12 +45,14 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 Restart your terminal.
 
-### Install Python
+### Install Python 3.11
 
 ```bash
 uv python install 3.11
 uv python pin 3.11
 ```
+
+This will create a `.python-version` file pinning the project to Python 3.11.
 
 ### Create virtual environment
 
@@ -58,6 +60,8 @@ uv python pin 3.11
 uv venv
 source .venv/bin/activate
 ```
+
+The virtual environment will automatically use Python 3.11.
 
 ### Install dependencies
 
@@ -71,7 +75,19 @@ Or install from project:
 uv pip install -e .
 ```
 
+**Note on ML libraries:**
+- **CatBoost**: Works out of the box on Python 3.11
+- **LightGBM**: Requires `libomp` system library. Install with `brew install libomp` if you encounter import errors. The code will gracefully fall back to scikit-learn's RandomForestRegressor if LightGBM is unavailable.
+- **Fallback**: If neither CatBoost nor LightGBM are available, the system automatically uses scikit-learn's RandomForestRegressor.
+
 ## Running the project
+
+Make sure you're in the project root and have activated the virtual environment:
+
+```bash
+source .venv/bin/activate
+export PYTHONPATH=$(pwd)  # Or use: PYTHONPATH=$(pwd) python src/run_pipeline.py
+```
 
 ### Run full pipeline (forecast only)
 
@@ -83,6 +99,14 @@ python src/run_pipeline.py --mode predict
 
 ```bash
 python src/run_pipeline.py --mode retrain
+```
+
+### Generate sample data (for testing)
+
+To create sample sales data for testing:
+
+```bash
+python -c "from src.ingest.load_sales import create_sample_data; import yaml; config = yaml.safe_load(open('config/config.yaml')); create_sample_data(config, num_items=3, days=60)"
 ```
 
 ## Project Structure
@@ -119,7 +143,9 @@ Edit `config/config.yaml` to customize:
 - Database path
 - Forecast horizon (default: 7 days)
 - Feature window (default: 28 days)
-- Model type (catboost or lightgbm)
+- Model type (`catboost` or `lightgbm`)
+
+The model type will automatically fall back to `RandomForestRegressor` (from scikit-learn) if the requested library is not available.
 
 ## Database Schema
 
