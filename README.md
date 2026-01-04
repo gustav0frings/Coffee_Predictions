@@ -15,7 +15,7 @@ It is designed to be:
 
 - Ingests raw sales data
 - Aggregates sales daily per item
-- Builds time-series features (lags, rolling averages)
+- Builds time-series features (lags, rolling averages, calendar features, promotions, holidays)
 - Trains a global ML model
 - Generates next-week forecasts
 - Stores results in SQLite
@@ -177,14 +177,19 @@ The model type will automatically fall back to `RandomForestRegressor` (from sci
 The SQLite database (`data/forecast.db`) contains:
 
 - `items`: Item master data
-- `daily_item_sales`: Historical daily sales per item
+- `daily_item_sales`: Historical daily sales per item with columns:
+  - `date`, `item_id`, `quantity`
+  - `promotion_discount`: Promotion discount percentage (0-100, default 0.0)
+  - `is_holiday`: Holiday flag (0 or 1, default 0)
 - `forecasts`: Generated forecasts (with `run_id` to track different forecast runs)
 - `model_runs`: Training run metadata
 
 **Sample Data:**
 - Sample data is generated programmatically using `create_sample_data()` function
 - By default, creates 3 items with 60 days of historical sales data
-- Data includes realistic patterns (weekend effects, randomness)
+- Data includes realistic patterns (weekend effects, promotions, holidays, randomness)
+- Promotions are generated on ~15% of days with discounts between 10-30%
+- Holidays are generated on ~10% of days, with preference for weekends and month-end
 - All data is stored in the SQLite database at `data/forecast.db`
 
 **Viewing Data:**

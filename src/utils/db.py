@@ -40,10 +40,23 @@ def init_database(config: dict) -> None:
             date TEXT NOT NULL,
             item_id INTEGER NOT NULL,
             quantity REAL NOT NULL,
+            promotion_discount REAL DEFAULT 0,
+            is_holiday INTEGER DEFAULT 0,
             PRIMARY KEY (date, item_id),
             FOREIGN KEY (item_id) REFERENCES items(id)
         )
     """)
+    
+    # Migrate existing tables to add new columns if they don't exist
+    try:
+        cursor.execute("ALTER TABLE daily_item_sales ADD COLUMN promotion_discount REAL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
+    
+    try:
+        cursor.execute("ALTER TABLE daily_item_sales ADD COLUMN is_holiday INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     
     # Create forecasts table
     cursor.execute("""

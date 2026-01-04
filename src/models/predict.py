@@ -59,7 +59,24 @@ def generate_forecasts(config: dict) -> pd.DataFrame:
     # Build features for forecast period
     # We need to create feature rows for each (date, item_id) combination
     forecasts = []
-    feature_cols = ["lag_1", "lag_7", "rolling_7", "rolling_28", "day_of_week", "month", "item_id"]
+    feature_cols = ["lag_1", "lag_7", "rolling_7", "rolling_28", "day_of_week", "month", "promotion_discount", "is_holiday", "item_id"]
+    
+    # Try to load promotion/holiday data for forecast dates from database
+    conn = get_connection(config)
+    try:
+        # Use parameterized query to avoid SQL injection
+        placeholders = ','.join(['?' for _ in forecast_dates])
+        promo_holiday_df = pd.read_sql_query(
+            f"SELECT date, item_id, COALESCE(promotion_discount, 0) as promotion_discount, COALESCE(is_holiday, 0) as is_holiday FROM daily_item_sales WHERE date IN ({placeholders})",
+            conn,
+            params=forecast_dates
+        )
+        promo_holiday_df["promotion_discount"] = promo_holiday_df["promotion_discount"].fillna(0.0).astype(float)
+        promo_holiday_df["is_holiday"] = promo_holiday_df["is_holiday"].fillna(0).astype(int)
+    except Exception as e:
+        logger.warning(f"Could not load promotion/holiday data for forecast dates: {e}")
+        promo_holiday_df = pd.DataFrame(columns=["date", "item_id", "promotion_discount", "is_holiday"])
+    conn.close()
     
     for date in forecast_dates:
         for _, item_row in items_df.iterrows():
@@ -89,9 +106,19 @@ def generate_forecasts(config: dict) -> pd.DataFrame:
             day_of_week = date_obj.dayofweek
             month = date_obj.month
             
+            # Get promotion and holiday data for this date/item combination
+            promo_holiday_row = promo_holiday_df[(promo_holiday_df["date"] == date) & (promo_holiday_df["item_id"] == item_id)]
+            if not promo_holiday_row.empty:
+                promotion_discount = float(promo_holiday_row["promotion_discount"].iloc[0])
+                is_holiday = int(promo_holiday_row["is_holiday"].iloc[0])
+            else:
+                # Default to no promotion and not a holiday if data not available
+                promotion_discount = 0.0
+                is_holiday = 0
+            
             # Build feature vector
             X = pd.DataFrame([[
-                lag_1, lag_7, rolling_7, rolling_28, day_of_week, month, item_id
+                lag_1, lag_7, rolling_7, rolling_28, day_of_week, month, promotion_discount, is_holiday, item_id
             ]], columns=feature_cols)
             
             # Make prediction

@@ -29,19 +29,23 @@ Historical daily sales data - this is the **input** data used for training and f
 - `date`: Date in YYYY-MM-DD format
 - `item_id`: Foreign key to items table
 - `quantity`: Number of units sold (float)
+- `promotion_discount`: Promotion discount percentage (0-100, float). 0.0 means no promotion active.
+- `is_holiday`: Holiday flag (0 or 1, integer). 0 = not a holiday, 1 = holiday (national, regional, or special day)
 
 **Format:**
 - One row per item per day
 - Dates should be consecutive (no gaps required, but recommended)
 - Quantity should be non-negative
+- Promotion discount should be between 0.0 and 100.0 (percentage)
+- Holiday flag should be 0 or 1
 
 **Example:**
 ```csv
-date,item_id,quantity
-2025-11-05,1,18.0
-2025-11-05,2,21.0
-2025-11-05,3,25.0
-2025-11-06,1,13.0
+date,item_id,quantity,promotion_discount,is_holiday
+2025-11-05,1,18.0,0.0,0
+2025-11-05,2,21.0,0.0,0
+2025-11-08,1,26.0,15.5,0
+2025-11-09,1,23.0,0.0,1
 ```
 
 **Note:** This file shows 30 days of sample data (90 rows = 30 days × 3 items).
@@ -94,8 +98,8 @@ run_id,timestamp,model_type,metrics
 ## Data Flow
 
 1. **Input**: `sample_sales_input.csv` → Loaded into `daily_item_sales` table
-2. **Processing**: Features are built (lags, rolling averages, calendar features)
-3. **Training**: Model is trained on historical data
+2. **Processing**: Features are built (lags, rolling averages, calendar features, promotions, holidays)
+3. **Training**: Model is trained on historical data including promotion and holiday features
 4. **Output**: `sample_forecasts_output.csv` → Generated and stored in `forecasts` table
 
 ## Using This Data
@@ -122,7 +126,10 @@ python src/utils/view_data.py --all
 - **Date format**: YYYY-MM-DD (ISO 8601)
 - **Item ID**: Must exist in `items` table
 - **Quantity**: Non-negative number (can be float for partial units)
+- **Promotion discount**: Float between 0.0 and 100.0 (percentage). 0.0 indicates no promotion.
+- **Holiday flag**: Integer 0 or 1. 0 = not a holiday, 1 = holiday.
 - **Completeness**: Ideally, all items should have data for all dates (missing dates will be handled gracefully)
+- **Promotions and holidays**: These are important features for the model. If not provided, defaults to 0.0 (no promotion) and 0 (not a holiday)
 
 ### Output Forecasts
 - **Date format**: YYYY-MM-DD

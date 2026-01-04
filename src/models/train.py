@@ -60,9 +60,9 @@ def train_model(features_df: pd.DataFrame, config: dict) -> tuple:
         # Create a minimal model that will predict zeros
         model = _get_model(config)
         # Train on dummy data
-        X_dummy = pd.DataFrame([[0, 0, 0, 0, 0, 0, 0]], 
+        X_dummy = pd.DataFrame([[0, 0, 0, 0, 0, 0, 0, 0, 0]], 
                               columns=["lag_1", "lag_7", "rolling_7", "rolling_28", 
-                                      "day_of_week", "month", "item_id"])
+                                      "day_of_week", "month", "promotion_discount", "is_holiday", "item_id"])
         y_dummy = pd.Series([0])
         model.fit(X_dummy, y_dummy)
     else:
@@ -71,7 +71,7 @@ def train_model(features_df: pd.DataFrame, config: dict) -> tuple:
         model = _get_model(config)
         
         # Prepare features and target
-        feature_cols = ["lag_1", "lag_7", "rolling_7", "rolling_28", "day_of_week", "month", "item_id"]
+        feature_cols = ["lag_1", "lag_7", "rolling_7", "rolling_28", "day_of_week", "month", "promotion_discount", "is_holiday", "item_id"]
         available_cols = [col for col in feature_cols if col in features_df.columns]
         
         if "quantity" in features_df.columns:
